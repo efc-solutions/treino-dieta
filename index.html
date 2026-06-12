@@ -175,6 +175,13 @@
   .day-warn{display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(224,86,110,.1);border:1px solid var(--felt);border-radius:13px;padding:12px 14px;margin-top:14px;font-size:13px;color:var(--ivory);line-height:1.4}
   .day-warn button{flex:0 0 auto;background:var(--felt);border:none;color:#fff;font:inherit;font-weight:700;font-size:12.5px;padding:8px 12px;border-radius:9px;cursor:pointer;-webkit-tap-highlight-color:transparent}
   .date.late{color:var(--felt);font-weight:700}
+  .day-nav{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;background:var(--ink-2);border:1px solid var(--line);border-radius:13px;padding:6px}
+  .day-nav button{width:44px;height:44px;border-radius:10px;border:1px solid var(--line-2);background:var(--ink-3);color:var(--ivory);font-size:22px;line-height:1;cursor:pointer;-webkit-tap-highlight-color:transparent}
+  .day-nav button:disabled{opacity:.3;cursor:default}
+  .day-nav button:active:not(:disabled){background:var(--brass);color:#0A0D14}
+  .day-nav-date{flex:1;text-align:center;display:flex;align-items:center;justify-content:center;gap:8px}
+  #navDate{font-family:"Space Mono",monospace;font-size:14px;color:var(--ivory)}
+  .nav-today{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#0A0D14;background:var(--ok);padding:2px 8px;border-radius:20px}
   .footer-act button{background:none;border:none;color:var(--ivory-dim);font:inherit;font-size:12px;text-decoration:underline;text-underline-offset:3px;cursor:pointer;opacity:.7}
   .footer-act .sep{color:var(--ivory-dim);opacity:.35;margin:0 6px;font-size:12px}
   #toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);background:var(--brass);color:#0A0D14;font-weight:700;font-size:14px;padding:11px 20px;border-radius:30px;opacity:0;pointer-events:none;transition:.3s;box-shadow:0 10px 30px rgba(0,0,0,.4);z-index:50}
@@ -203,8 +210,13 @@
       <span id="dayWarnTxt"></span>
       <button id="jumpToday">Ir para hoje →</button>
     </div>
+    <div class="day-nav">
+      <button id="prevDay" aria-label="dia anterior">‹</button>
+      <div class="day-nav-date"><span id="navDate"></span><span id="navToday" class="nav-today">hoje</span></div>
+      <button id="nextDay" aria-label="próximo dia">›</button>
+    </div>
     <div class="card">
-      <div class="card-head"><span class="card-title">Água</span><span class="date" id="dHoje"></span></div>
+      <div class="card-head"><span class="card-title">Água</span></div>
       <div class="water-top">
         <div class="water-num"><span id="waterL">0,0</span><small> / 3 L</small></div>
         <div class="muted" id="waterPct">0%</div>
@@ -507,21 +519,23 @@ document.getElementById("wkNote").addEventListener("input",e=>{const d=today();d
 
 // ---- progress ----
 function weekKeysAll(){const m={};Object.keys(days).forEach(dt=>{const w=mondayOf(dt);(m[w]=m[w]||[]).push(dt);});return m;}
+function hasSets(d){ return d.log && Object.values(d.log).some(a=>a&&a.length); }
+function didForca(d){ return FORCA.includes(d.type) && (d.workoutDone || hasSets(d)); }
+function didCardio(d){ const goal=d.cardioLong?50:30; return !!d.cardioDone || (d.cardio||0)>=goal; }
 function renderProgress(){
-  const cg=d=>(d.cardioLong?50:30);
   const wk=mondayOf(TID);
   const inWeek=Object.keys(days).filter(dt=>mondayOf(dt)===wk);
-  const forca=inWeek.filter(dt=>FORCA.includes(days[dt].type)&&days[dt].workoutDone).length;
-  const cardioDias=inWeek.filter(dt=>days[dt].cardioDone).length;
+  const forca=inWeek.filter(dt=>didForca(days[dt])).length;
+  const cardioDias=inWeek.filter(dt=>didCardio(days[dt])).length;
   const agua=inWeek.filter(dt=>days[dt].water>=GOAL).length;
   document.getElementById("stForca").innerHTML=forca+'<small style="font-size:13px;color:var(--ivory-dim)">/4</small>';
   document.getElementById("stCardio").innerHTML=cardioDias+'<small style="font-size:13px;color:var(--ivory-dim)"> dias</small>';
   document.getElementById("stAgua").innerHTML=agua+'<small style="font-size:13px;color:var(--ivory-dim)">/7</small>';
 
-  const totalTreinos=Object.values(days).filter(d=>FORCA.includes(d.type)&&d.workoutDone).length;
+  const totalTreinos=Object.values(days).filter(d=>didForca(d)).length;
   document.getElementById("stTreinos").textContent=totalTreinos;
   const wkm=weekKeysAll();
-  const semanas=Object.values(wkm).filter(dts=>dts.filter(dt=>FORCA.includes(days[dt].type)&&days[dt].workoutDone).length>=4).length;
+  const semanas=Object.values(wkm).filter(dts=>dts.filter(dt=>didForca(days[dt])).length>=4).length;
   document.getElementById("stSemanas").textContent=semanas;
   // protein last 7 days
   let prot=0;for(let i=0;i<7;i++){const dt=new Date();dt.setDate(dt.getDate()-i);const k=dt.toLocaleDateString("en-CA");if(days[k]&&days[k].protein)prot++;}
@@ -658,7 +672,10 @@ document.getElementById("resetBtn").addEventListener("click",()=>{
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),1800);}
 
 function initToday(){
-  document.getElementById("dHoje").textContent=fmt(TID);
+  const isToday=TID===todayISO();
+  document.getElementById("navDate").textContent=fmt(TID);
+  document.getElementById("navToday").style.display=isToday?"inline-block":"none";
+  document.getElementById("nextDay").disabled=isToday;
   document.getElementById("wkNote").value=today().note||"";
   renderWater();renderCardio();renderCardioDone();renderRecovery();renderPicker();renderExercises();renderWkDone();updateDayWarn();
 }
@@ -666,9 +683,7 @@ function updateDayWarn(){
   const diff=Math.round((new Date(todayISO()+"T00:00:00")-new Date(TID+"T00:00:00"))/86400000);
   const warn=document.getElementById("dayWarn"), dEl=document.getElementById("dHoje");
   if(diff>0){
-    document.getElementById("dayWarnTxt").textContent = diff===1
-      ? "Este registro é de ontem ("+fmt(TID)+"). Finalize o dia para avançar."
-      : "Você está em "+fmt(TID)+" — "+diff+" dias atrás do dia real.";
+    document.getElementById("dayWarnTxt").textContent = "Você está vendo "+fmt(TID)+" — "+diff+" dia"+(diff>1?"s":"")+" atrás de hoje.";
     warn.style.display="flex"; dEl.classList.add("late");
   } else { warn.style.display="none"; dEl.classList.remove("late"); }
 }
@@ -677,6 +692,14 @@ document.getElementById("jumpToday").addEventListener("click",()=>{
   TID=todayISO(); save("ct:activeDate",TID); initToday(); renderDiet(); renderProgress();
   window.scrollTo({top:0,behavior:"smooth"}); toast("Agora em "+fmt(TID));
 });
+function shiftDay(delta){
+  const d=new Date(TID+"T00:00:00"); d.setDate(d.getDate()+delta);
+  const iso=d.toLocaleDateString("en-CA");
+  if(delta>0 && iso>todayISO()) return;
+  TID=iso; save("ct:activeDate",TID); initToday(); renderDiet(); renderProgress();
+}
+document.getElementById("prevDay").addEventListener("click",()=>shiftDay(-1));
+document.getElementById("nextDay").addEventListener("click",()=>shiftDay(1));
 function finalizarDia(){
   if(!confirm("Finalizar "+fmt(TID)+" e começar o próximo dia?\n\nO dia fica salvo no histórico — você só avança quando quiser."))return;
   const d=new Date(TID+"T00:00:00"); d.setDate(d.getDate()+1);
